@@ -7,39 +7,44 @@
 $ErrorActionPreference = "Stop"
 
 # --- Config ---
-$scriptName    = "LockScreenFix.ps1"
+$sourceName    = "LockScreenFix.cs"
+$exeName       = "LockScreenFix.exe"
 $installDir    = "$env:LOCALAPPDATA\LockScreenFix"
-$scriptDest    = "$installDir\$scriptName"
+$sourceDest    = "$installDir\$sourceName"
+$exeDest       = "$installDir\$exeName"
 $task1Name     = "LockScreenFix - On Lock"
 $task2Name     = "LockScreenFix - On Unlock"
 
-# PowerShell executable
-$psExe = "$PSHOME\powershell.exe"
-if (-not (Test-Path $psExe)) {
-    # Try PowerShell 7 if classic isn't found
-    $cmd = Get-Command pwsh -ErrorAction SilentlyContinue
-    $psExe = if ($cmd) { $cmd.Source } else { $null }
-    if (-not $psExe) {
-        throw "Could not locate powershell.exe or pwsh.exe"
-    }
+# --- Locate .NET Framework C# compiler ---
+$cscPath = Join-Path ([System.Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) "csc.exe"
+if (-not (Test-Path $cscPath)) {
+    throw "Could not find .NET Framework C# compiler (csc.exe). .NET Framework 4.x is required."
 }
 
-# --- Copy worker script to install dir ---
+# --- Find source file ---
+$sourceFile = Join-Path $PSScriptRoot $sourceName
+if (-not (Test-Path $sourceFile)) {
+    $sourceFile = Join-Path (Split-Path $MyInvocation.MyCommand.Path) $sourceName
+}
+if (-not (Test-Path $sourceFile)) {
+    throw "Cannot find $sourceName - make sure it's in the same folder as this installer."
+}
+
+# --- Copy source and compile ---
 if (-not (Test-Path $installDir)) {
     New-Item -ItemType Directory -Path $installDir | Out-Null
 }
 
-$sourceScript = Join-Path $PSScriptRoot $scriptName
-if (-not (Test-Path $sourceScript)) {
-    # Try same folder as this installer
-    $sourceScript = Join-Path (Split-Path $MyInvocation.MyCommand.Path) $scriptName
-}
-if (-not (Test-Path $sourceScript)) {
-    throw "Cannot find $scriptName - make sure it's in the same folder as this installer."
-}
+Copy-Item $sourceFile $sourceDest -Force
 
-Copy-Item $sourceScript $scriptDest -Force
-Write-Host "Copied $scriptName to $installDir" -ForegroundColor Green
+Write-Host "Compiling $exeName..." -ForegroundColor Gray
+& $cscPath /nologo /target:winexe /out:$exeDest $sourceDest 2>&1 | ForEach-Object {
+    Write-Host "  $_" -ForegroundColor Gray
+}
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to compile $exeName"
+}
+Write-Host "Compiled $exeName to $installDir" -ForegroundColor Green
 
 # --- Ensure audit policy generates lock/unlock events (4800/4801) ---
 # Event IDs 4800 and 4801 require "Other Logon/Logoff Events" success auditing.
@@ -60,14 +65,10 @@ if ($auditOutput -notmatch "Success") {
     Write-Host "Audit policy already configured for lock/unlock events" -ForegroundColor Green
 }
 
-# --- Build task arguments ---
-$lockArgs   = "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptDest`" -Action lock"
-$unlockArgs = "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptDest`" -Action unlock"
-
 # --- Validate values are safe to embed in XML ---
 # Usernames, domains, or paths containing <, >, or & will produce malformed task XML.
 $userId = "$env:USERDOMAIN\$env:USERNAME"
-foreach ($val in @($userId, $psExe, $lockArgs, $unlockArgs)) {
+foreach ($val in @($userId, $exeDest)) {
     if ($val -match '[<>&]') {
         throw "Cannot register scheduled tasks: a value contains XML-unsafe characters (<, >, &): '$val'. See README for details."
     }
@@ -111,8 +112,8 @@ $lockTaskXml = @"
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>$psExe</Command>
-      <Arguments>$lockArgs</Arguments>
+      <Command>$exeDest</Command>
+      <Arguments>lock</Arguments>
     </Exec>
   </Actions>
 </Task>
@@ -148,8 +149,8 @@ $unlockTaskXml = @"
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>$psExe</Command>
-      <Arguments>$unlockArgs</Arguments>
+      <Command>$exeDest</Command>
+      <Arguments>unlock</Arguments>
     </Exec>
   </Actions>
 </Task>
