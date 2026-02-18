@@ -4,11 +4,11 @@ Automatically mirrors/clones your display across all monitors when Windows locks
 
 ## How it works
 
-When you press Win+L (or your screen locks automatically), Windows Task Scheduler fires the worker script via Security Event ID 4800. The script calls the built-in `DisplaySwitch.exe /clone` to mirror all displays. On unlock (Event ID 4801), it waits briefly for the desktop compositor to settle, then calls `DisplaySwitch.exe /extend` to restore your multi-monitor layout.
+When you press Win+L (or your screen locks automatically), Windows Task Scheduler fires the worker script via Security Event ID 4800. The script calls the Win32 `SetDisplayConfig` API to switch all displays to clone/mirror mode. On unlock (Event ID 4801), it waits briefly for the desktop compositor to settle, then calls the same API to restore extended mode. The API is called directly via P/Invoke rather than through `DisplaySwitch.exe`, because the GUI executable fails silently during desktop transitions (lock/unlock switches to the secure desktop).
 
 ## Requirements
 
-- Windows 10 or 11 (uses built-in `DisplaySwitch.exe`)
+- Windows 10 or 11
 - PowerShell 5.1+ (included with Windows) or PowerShell 7+
 - Administrator privileges (for installation only)
 - Multiple monitors
