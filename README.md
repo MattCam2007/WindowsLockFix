@@ -60,9 +60,28 @@ Then re-run `.\Install-LockScreenFix.ps1` as Administrator to recompile and rein
 
 ## Logging
 
-Logs are written to `%LOCALAPPDATA%\LockScreenFix\lockscreenfix.log`. The log file is automatically rotated when it exceeds 1 MB (old entries move to `lockscreenfix.log.old`).
+Logs are written to `%LOCALAPPDATA%\LockScreenFix\lockscreenfix.log`.
 
 A result code of `0` means success. Any other value indicates a Win32 error from `SetDisplayConfig`.
+
+### Log size limit
+
+The log file is automatically rotated when it exceeds **1 MB**. On rotation, the current file is copied to `lockscreenfix.log.old` and a fresh log starts. Only one backup is kept, so the maximum disk usage is approximately **2 MB** (the active log plus the `.old` file).
+
+### Changing the log size limit
+
+The 1 MB threshold is hardcoded in `LockScreenFix.cs`. To change it, find this line:
+
+```csharp
+if (info.Length > 1024 * 1024)
+```
+
+Replace `1024 * 1024` (1 MB) with the desired size in bytes. For example:
+
+- **512 KB:** `512 * 1024`
+- **5 MB:** `5 * 1024 * 1024`
+
+Then re-run `.\Install-LockScreenFix.ps1` as Administrator to recompile and reinstall.
 
 ## Security notes
 
