@@ -17,7 +17,8 @@ $task2Name     = "LockScreenFix - On Unlock"
 $psExe = "$PSHOME\powershell.exe"
 if (-not (Test-Path $psExe)) {
     # Try PowerShell 7 if classic isn't found
-    $psExe = (Get-Command pwsh -ErrorAction SilentlyContinue)?.Source
+    $cmd = Get-Command pwsh -ErrorAction SilentlyContinue
+    $psExe = if ($cmd) { $cmd.Source } else { $null }
     if (-not $psExe) {
         throw "Could not locate powershell.exe or pwsh.exe"
     }
@@ -40,9 +41,37 @@ if (-not (Test-Path $sourceScript)) {
 Copy-Item $sourceScript $scriptDest -Force
 Write-Host "Copied $scriptName to $installDir" -ForegroundColor Green
 
+# --- Ensure audit policy generates lock/unlock events (4800/4801) ---
+# Event IDs 4800 and 4801 require "Other Logon/Logoff Events" success auditing.
+# Without this, the scheduled tasks will never trigger.
+$auditFlagFile = "$installDir\audit_enabled_by_installer.flag"
+$auditOutput = & auditpol /get /subcategory:"Other Logon/Logoff Events" 2>&1 | Out-String
+
+if ($auditOutput -notmatch "Success") {
+    Write-Host "Enabling audit policy for lock/unlock events (required for Event IDs 4800/4801)..." -ForegroundColor Yellow
+    & auditpol /set /subcategory:"Other Logon/Logoff Events" /success:enable | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to enable audit policy. Lock/unlock events will not be generated."
+    }
+    # Flag that we enabled this so the uninstaller can revert it
+    "Enabled by LockScreenFix installer on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" | Out-File $auditFlagFile -Encoding utf8
+    Write-Host "Audit policy enabled for Other Logon/Logoff Events" -ForegroundColor Green
+} else {
+    Write-Host "Audit policy already configured for lock/unlock events" -ForegroundColor Green
+}
+
 # --- Build task arguments ---
 $lockArgs   = "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptDest`" -Action lock"
 $unlockArgs = "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptDest`" -Action unlock"
+
+# --- Validate values are safe to embed in XML ---
+# Usernames, domains, or paths containing <, >, or & will produce malformed task XML.
+$userId = "$env:USERDOMAIN\$env:USERNAME"
+foreach ($val in @($userId, $psExe, $lockArgs, $unlockArgs)) {
+    if ($val -match '[<>&]') {
+        throw "Cannot register scheduled tasks: a value contains XML-unsafe characters (<, >, &): '$val'. See README for details."
+    }
+}
 
 # --- Remove old tasks if they exist ---
 foreach ($taskName in @($task1Name, $task2Name)) {
@@ -53,20 +82,6 @@ foreach ($taskName in @($task1Name, $task2Name)) {
 }
 
 # --- Task 1: On Lock (Event ID 4800 — workstation locked) ---
-$lockTriggerXml = @"
-<QueryList>
-  <Query Id="0" Path="Security">
-    <Select Path="Security">*[System[EventID=4800]]</Select>
-  </Query>
-</QueryList>
-"@
-
-$lockTrigger  = New-ScheduledTaskTrigger -AtLogOn  # placeholder, we'll use event trigger via XML below
-$lockAction   = New-ScheduledTaskAction -Execute $psExe -Argument $lockArgs
-$taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 1)
-$taskPrincipal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-
-# Register with event-based trigger using Register-ScheduledTask XML approach
 $lockTaskXml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
