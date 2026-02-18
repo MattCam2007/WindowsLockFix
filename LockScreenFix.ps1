@@ -43,7 +43,7 @@ if (-not (Test-Path $displaySwitch)) {
 
 switch ($Action) {
     "lock" {
-        Write-Log "Lock event detected — switching to Clone/Mirror mode"
+        Write-Log "Lock event detected - switching to Clone/Mirror mode"
         & $displaySwitch /clone
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             Write-Log "WARNING: DisplaySwitch.exe exited with code $LASTEXITCODE"
@@ -55,7 +55,7 @@ switch ($Action) {
         # If switching feels sluggish or fails on your system, you can adjust this
         # value directly in this script. See README for details.
         Start-Sleep -Milliseconds 1500
-        Write-Log "Unlock event detected — switching to Extend mode"
+        Write-Log "Unlock event detected - switching to Extend mode"
         & $displaySwitch /extend
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             Write-Log "WARNING: DisplaySwitch.exe exited with code $LASTEXITCODE"
@@ -63,4 +63,4 @@ switch ($Action) {
     }
 }
 
-Write-Log "Done — Action: $Action"
+Write-Log "Done - Action: $Action"

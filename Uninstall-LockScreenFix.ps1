@@ -24,7 +24,7 @@ if (Test-Path $auditFlagFile) {
     Remove-Item $auditFlagFile -Force -ErrorAction SilentlyContinue
     Write-Host "Audit policy reverted for Other Logon/Logoff Events" -ForegroundColor Yellow
 } else {
-    Write-Host "Audit policy was not changed by installer — leaving as-is" -ForegroundColor Gray
+    Write-Host "Audit policy was not changed by installer - leaving as-is" -ForegroundColor Gray
 }
 
 $cleanup = Read-Host "Remove install directory $installDir ? (y/n)"
