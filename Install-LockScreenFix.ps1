@@ -35,7 +35,7 @@ if (-not (Test-Path $sourceScript)) {
     $sourceScript = Join-Path (Split-Path $MyInvocation.MyCommand.Path) $scriptName
 }
 if (-not (Test-Path $sourceScript)) {
-    throw "Cannot find $scriptName — make sure it's in the same folder as this installer."
+    throw "Cannot find $scriptName - make sure it's in the same folder as this installer."
 }
 
 Copy-Item $sourceScript $scriptDest -Force
@@ -81,7 +81,7 @@ foreach ($taskName in @($task1Name, $task2Name)) {
     }
 }
 
-# --- Task 1: On Lock (Event ID 4800 — workstation locked) ---
+# --- Task 1: On Lock (Event ID 4800 - workstation locked) ---
 $lockTaskXml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -118,7 +118,7 @@ $lockTaskXml = @"
 </Task>
 "@
 
-# --- Task 2: On Unlock (Event ID 4801 — workstation unlocked) ---
+# --- Task 2: On Unlock (Event ID 4801 - workstation unlocked) ---
 $unlockTaskXml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
